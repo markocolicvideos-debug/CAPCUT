@@ -1,0 +1,14 @@
+# Lokal geklonter Upstream-Server (per ./setup.sh) – nicht ins Repo committen.
+VectCutAPI/
+
+# Python venv / Caches
+.venv/
+__pycache__/
+*.pyc
+
+# Laufzeit-Logs der Hintergrund-Server
+server.log
+http.log
+
+# Erzeugte Entwurfsordner
+dfd_*/
