@@ -18,6 +18,7 @@ Nur Standardbibliothek noetig (urllib) – laeuft auch ausserhalb des venv.
 import json
 import os
 import re
+import shutil
 import sys
 import urllib.error
 import urllib.parse
@@ -47,6 +48,15 @@ DRAFT_FOLDER = os.environ.get(
     os.path.expanduser(
         "~/Movies/CapCut/User Data/Projects/com.lveditor.draft"
     ),
+)
+
+# Verzeichnis, in dem der CapCutAPI-Server die dfd_*-Ordner anlegt
+# (= Arbeitsverzeichnis des Servers, normal die geklonte ./VectCutAPI).
+# Wird gebraucht, um den fertigen Entwurf automatisch nach DRAFT_FOLDER zu
+# kopieren. Nicht gefunden -> Kopieren wird uebersprungen (mit Hinweis).
+SERVER_DIR = os.environ.get(
+    "SERVER_DIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "VectCutAPI"),
 )
 
 # Erlaubte Bildendungen.
@@ -185,6 +195,33 @@ def check_response(path, payload):
     return payload
 
 
+def install_draft(draft_id):
+    """Kopiert den fertigen dfd_-Ordner von SERVER_DIR nach DRAFT_FOLDER.
+
+    save_draft schreibt den Ordner ins Arbeitsverzeichnis des Servers (nicht
+    automatisch nach DRAFT_FOLDER). Da save_draft synchron ist, ist der Ordner
+    hier bereits vollstaendig. Rueckgabe: Zielpfad bei Erfolg, sonst None.
+    """
+    src = os.path.join(SERVER_DIR, draft_id)
+    if not os.path.isdir(src):
+        print(f"Hinweis: Entwurfsordner nicht in SERVER_DIR gefunden:\n  {src}")
+        print("  -> Der Server lief evtl. in einem anderen Verzeichnis.")
+        print(f"  -> Suche den Ordner '{draft_id}' im Arbeitsverzeichnis deines")
+        print(f"     Servers und kopiere ihn manuell nach:\n     {DRAFT_FOLDER}")
+        return None
+    dst = os.path.join(DRAFT_FOLDER, draft_id)
+    if os.path.abspath(src) == os.path.abspath(dst):
+        return dst  # liegt bereits am Ziel
+    try:
+        os.makedirs(DRAFT_FOLDER, exist_ok=True)
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+        return dst
+    except OSError as exc:
+        print(f"Hinweis: automatisches Kopieren fehlgeschlagen: {exc}")
+        print(f"  Bitte manuell kopieren:\n    cp -R '{src}' '{DRAFT_FOLDER}/'")
+        return None
+
+
 # --------------------------------------------------------------------------
 # Hauptablauf
 # --------------------------------------------------------------------------
@@ -193,6 +230,7 @@ def main():
     flags = [a for a in sys.argv[1:] if a.startswith("-")]
     dry_run = "--dry-run" in flags or "-n" in flags
     assume_yes = "--yes" in flags or "-y" in flags
+    no_install = "--no-install" in flags
 
     image_dir = args[0] if args else IMAGE_DIR
     image_dir = os.path.abspath(os.path.expanduser(image_dir))
@@ -265,12 +303,25 @@ def main():
     }))
     print(f"  Antwort: {json.dumps(resp)[:500]}")
 
+    # 4) Entwurf nach DRAFT_FOLDER kopieren (ausser --no-install).
+    print()
+    if no_install:
+        print("Fertig (ohne Installation, --no-install).")
+        print(f"  draft_id = {draft_id}")
+        print(f"  Erzeugter Ordner: {os.path.join(SERVER_DIR, draft_id)}")
+        print(f"  Manuell nach {DRAFT_FOLDER} kopieren und CapCut neu starten.")
+        return
+
+    installed = install_draft(draft_id)
     print()
     print("Fertig.")
     print(f"  draft_id = {draft_id}")
-    print(f"  Ziel-Ordner: {DRAFT_FOLDER}")
-    print("Erscheint der Entwurf nicht in CapCut: den erzeugten dfd_*-Ordner")
-    print("nach DRAFT_FOLDER kopieren und CapCut neu starten.")
+    if installed:
+        print(f"  Entwurf installiert: {installed}")
+        print("  -> CapCut zuerst beenden, dann neu starten. Der Entwurf")
+        print("     erscheint dann in der Projektliste.")
+    else:
+        print("  Entwurf NICHT automatisch installiert (Hinweis oben beachten).")
 
 
 if __name__ == "__main__":

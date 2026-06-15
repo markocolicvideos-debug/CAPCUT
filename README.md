@@ -79,6 +79,7 @@ Oben in `build_capcut_draft.py` bzw. per Umgebungsvariable:
 | `IMAGE_BASE`   | `http://localhost:8000/`                                            |
 | `WIDTH`/`HEIGHT` | `1920` / `1080`                                                  |
 | `DRAFT_FOLDER` | `~/Movies/CapCut/User Data/Projects/com.lveditor.draft` (macOS)     |
+| `SERVER_DIR`   | `./VectCutAPI` (wo der Server die `dfd_*`-Ordner anlegt)            |
 
 Vorschau ohne zu bauen:
 
@@ -88,17 +89,27 @@ python3 build_capcut_draft.py /pfad/zu/bildern --dry-run
 
 ## Schritt 3 – Entwurf in CapCut oeffnen
 
-`save_draft` erzeugt einen Ordner, der mit `dfd_` beginnt. Erscheint der
-Entwurf **nicht automatisch** in CapCut:
+`save_draft` erzeugt einen `dfd_*`-Ordner **im Server-Verzeichnis**
+(`SERVER_DIR`, normal `./VectCutAPI`). Das Skript **kopiert ihn danach
+automatisch** nach `DRAFT_FOLDER` (CapCuts Projektordner). Du musst danach nur
+noch **CapCut beenden und neu starten** – der Entwurf erscheint in der
+Projektliste.
 
-1. Den erzeugten `dfd_*`-Ordner nach `DRAFT_FOLDER` kopieren
-   (`~/Movies/CapCut/User Data/Projects/com.lveditor.draft`).
-2. CapCut neu starten.
+- Automatisches Kopieren abschalten: `--no-install` (dann manuell kopieren).
+- Findet das Skript den Ordner nicht (Server lief woanders), gibt es den
+  genauen manuellen Kopierbefehl aus.
 
 ## Zeitstempel-Format
 
-Aus dem Dateinamen werden alle Zahlengruppen gelesen und die letzten drei
-rechtsbuendig als `H-M-S` interpretiert (fuehrende Nullen egal):
-`00-00-02` → 2 s, `1-30` → 90 s, `01-02-03` → 3723 s. Bilder mit Dauer ≤ 0
-(z.B. doppelter Zeitstempel) werden uebersprungen. **Deine Bilddateien werden
-nie umbenannt oder verschoben.**
+Aus dem Dateinamen werden alle Zahlengruppen gelesen und die **letzten drei**
+rechtsbuendig als `H-M-S` interpretiert (fuehrende Nullen egal). Eine
+fuehrende Nummerierung wird dadurch automatisch ignoriert:
+
+- `00-00-02` → 2 s
+- `001_00-00-01.jpg` → 1 s (das `001_` zaehlt nicht mit)
+- `013_00-01-00.jpg` → 60 s
+- `1-30` → 90 s, `01-02-03` → 3723 s
+
+Luecken in der Nummerierung (z.B. fehlende `016`) sind egal. Bilder mit Dauer
+≤ 0 (z.B. doppelter Zeitstempel) werden uebersprungen. **Deine Bilddateien
+werden nie umbenannt oder verschoben.**
