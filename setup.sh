@@ -17,10 +17,32 @@ fi
 
 cd "$REPO_DIR"
 
-# 2) venv anlegen.
+# 2) venv mit Python 3.10+ anlegen.
+#    Der Server nutzt 3.10er-Syntax (z.B. 'str | None'), 3.9 reicht NICHT.
+PY=""
+for cand in python3.13 python3.12 python3.11 python3.10 python3; do
+  command -v "$cand" >/dev/null 2>&1 || continue
+  v=$("$cand" -c 'import sys;print(sys.version_info[0]*100+sys.version_info[1])' 2>/dev/null) || continue
+  if [ "${v:-0}" -ge 310 ] 2>/dev/null; then PY="$cand"; break; fi
+done
+if [ -z "$PY" ]; then
+  echo "FEHLER: Kein Python 3.10+ gefunden."
+  echo "  Installiere eines, z.B. mit Homebrew:  brew install python@3.11"
+  exit 1
+fi
+echo "==> Nutze $PY ($("$PY" --version 2>&1))"
+
+# Vorhandene venv mit zu alter Python-Version verwerfen und neu aufbauen.
+if [ -d ".venv" ]; then
+  vv=$(.venv/bin/python -c 'import sys;print(sys.version_info[0]*100+sys.version_info[1])' 2>/dev/null || echo 0)
+  if [ "${vv:-0}" -lt 310 ]; then
+    echo "==> Vorhandene .venv ist zu alt (Python <3.10) – wird neu aufgebaut."
+    rm -rf .venv
+  fi
+fi
 if [ ! -d ".venv" ]; then
-  echo "==> Lege venv an (.venv)"
-  python3 -m venv .venv
+  echo "==> Lege venv an (.venv) mit $PY"
+  "$PY" -m venv .venv
 fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
