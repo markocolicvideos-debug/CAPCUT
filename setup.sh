@@ -19,9 +19,18 @@ cd "$REPO_DIR"
 
 # 2) venv mit Python 3.10+ anlegen.
 #    Der Server nutzt 3.10er-Syntax (z.B. 'str | None'), 3.9 reicht NICHT.
+#    Kandidaten: Binaries im PATH + (falls vorhanden) Homebrew-Kegs, auch
+#    keg-only installierte python@3.x (die nicht im PATH liegen).
+CANDS="python3.13 python3.12 python3.11 python3.10 python3"
+if command -v brew >/dev/null 2>&1; then
+  for kv in 3.13 3.12 3.11 3.10; do
+    kp="$(brew --prefix "python@$kv" 2>/dev/null || true)/bin/python$kv"
+    [ -x "$kp" ] && CANDS="$CANDS $kp"
+  done
+fi
 PY=""
-for cand in python3.13 python3.12 python3.11 python3.10 python3; do
-  command -v "$cand" >/dev/null 2>&1 || continue
+for cand in $CANDS; do
+  command -v "$cand" >/dev/null 2>&1 || [ -x "$cand" ] || continue
   v=$("$cand" -c 'import sys;print(sys.version_info[0]*100+sys.version_info[1])' 2>/dev/null) || continue
   if [ "${v:-0}" -ge 310 ] 2>/dev/null; then PY="$cand"; break; fi
 done
