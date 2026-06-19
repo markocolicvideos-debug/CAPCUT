@@ -42,11 +42,15 @@ neuen Terminal-Fenster.
 
 ## Dateinamen-Format
 
-Zeitstempel als `HH-MM-SS`, führende Nummerierung wird ignoriert:
+Zeitstempel als `HH-MM-SS` **oder** `HH-MM-SS-mmm` (mit Millisekunden, für mehr
+Genauigkeit). Die führende Nummerierung wird ignoriert:
 
-- `001_00-00-01.jpg` → Sekunde 1
-- `002_00-00-05.jpg` → bis Sekunde 5
-- `013_00-01-00.jpg` → bis 1:00 Minute (60 s)
+- `001_00-00-01.jpg` → Sekunde 1.000
+- `001_00-00-04-880.jpg` → Sekunde 4.880 (`880` = Millisekunden)
+- `005_00-00-19-060.jpg` → Sekunde 19.060
+- `013_00-01-00.jpg` → 1:00 Minute (60 s)
+
+Beide Formate funktionieren – auch gemischt im selben Ordner.
 
 ## Wenn mal etwas nicht klappt
 

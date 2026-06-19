@@ -101,15 +101,22 @@ Projektliste.
 
 ## Zeitstempel-Format
 
-Aus dem Dateinamen werden alle Zahlengruppen gelesen und die **letzten drei**
-rechtsbuendig als `H-M-S` interpretiert (fuehrende Nullen egal). Eine
-fuehrende Nummerierung wird dadurch automatisch ignoriert:
+Eine fuehrende Nummerierung wird per `_` abgetrennt und ignoriert; der
+Zeitstempel ist der letzte `_`-Abschnitt. Unterstuetzt werden:
 
-- `00-00-02` → 2 s
-- `001_00-00-01.jpg` → 1 s (das `001_` zaehlt nicht mit)
-- `013_00-01-00.jpg` → 60 s
+- `HH-MM-SS` (Stunden-Minuten-Sekunden)
+- `HH-MM-SS-mmm` (zusaetzlich Millisekunden, fuer mehr Genauigkeit)
+
+Beispiele:
+
+- `001_00-00-01.jpg` → 1.000 s (das `001_` zaehlt nicht mit)
+- `001_00-00-04-880.jpg` → 4.880 s (`880` = Millisekunden)
+- `005_00-00-19-060.jpg` → 19.060 s
+- `013_00-01-00.jpg` → 60.000 s
 - `1-30` → 90 s, `01-02-03` → 3723 s
 
-Luecken in der Nummerierung (z.B. fehlende `016`) sind egal. Bilder mit Dauer
-≤ 0 (z.B. doppelter Zeitstempel) werden uebersprungen. **Deine Bilddateien
-werden nie umbenannt oder verschoben.**
+Jedes Bild laeuft lueckenlos vom Ende des vorigen bis zu seinem eigenen
+Zeitstempel – mit Millisekunden-Genauigkeit (CapCut rechnet intern in
+Mikrosekunden). Luecken in der Nummerierung sind egal; Bilder mit Dauer ≤ 0
+werden uebersprungen. **Deine Bilddateien werden nie umbenannt oder
+verschoben.**

@@ -72,19 +72,27 @@ HTTP_TIMEOUT = 120
 def parse_timestamp(filename):
     """Liest den Zeitstempel (Sekunden, float) aus dem Dateinamen.
 
-    Nimmt alle Zahlengruppen im Namen (ohne Endung) und interpretiert die
-    letzten drei rechtsbuendig als H, M, S. So funktionieren '00-00-02',
-    '2', '1-30' (= 1 min 30 s) und '01-02-03' gleichermassen.
+    Eine fuehrende Nummerierung wird per '_' abgetrennt und ignoriert; der
+    Zeitstempel ist der letzte '_'-Abschnitt. Unterstuetzte Formate:
+      HH-MM-SS       z.B. 001_00-00-04      -> 4.0 s
+      HH-MM-SS-mmm   z.B. 001_00-00-04-880  -> 4.880 s  (mmm = Millisekunden)
+    Kuerzere Formen ('2', '1-30') werden rechtsbuendig als H-M-S gedeutet.
     Gibt None zurueck, wenn keine Zahl gefunden wird.
     """
     stem = os.path.splitext(filename)[0]
-    groups = re.findall(r"\d+", stem)
+    time_part = stem.rsplit("_", 1)[-1]
+    groups = [int(g) for g in re.findall(r"\d+", time_part)]
     if not groups:
         return None
-    nums = [int(g) for g in groups][-3:]      # nur die letzten drei zaehlen
-    nums = [0] * (3 - len(nums)) + nums        # rechtsbuendig zu [H, M, S]
-    hours, minutes, seconds = nums
-    return hours * 3600 + minutes * 60 + seconds
+    millis = 0.0
+    if len(groups) >= 4:
+        # H-M-S-mmm: letzte Gruppe sind Millisekunden
+        millis = groups[-1] / 1000.0
+        hours, minutes, seconds = groups[-4], groups[-3], groups[-2]
+    else:
+        hms = [0] * (3 - len(groups)) + groups   # rechtsbuendig zu [H, M, S]
+        hours, minutes, seconds = hms[-3], hms[-2], hms[-1]
+    return round(hours * 3600 + minutes * 60 + seconds + millis, 3)
 
 
 def collect_images(image_dir):
@@ -253,12 +261,12 @@ def main():
 
     # Geplanten Ablauf zur Kontrolle ausgeben.
     print("Geplanter Ablauf:")
-    print(f"  {'Datei':<30} {'Start':>8} {'Ende':>8} {'Dauer':>8}")
+    print(f"  {'Datei':<26} {'Start':>9} {'Ende':>9} {'Dauer':>9}")
     for seg in segments:
-        print(f"  {seg['filename']:<30} {seg['start']:>8.2f} "
-              f"{seg['end']:>8.2f} {seg['duration']:>8.2f}")
+        print(f"  {seg['filename']:<26} {seg['start']:>9.3f} "
+              f"{seg['end']:>9.3f} {seg['duration']:>9.3f}")
     total = segments[-1]["end"]
-    print(f"  -> {len(segments)} Segmente, Gesamtlaenge {total:.2f}s")
+    print(f"  -> {len(segments)} Segmente, Gesamtlaenge {total:.3f}s")
     print()
 
     if dry_run:
