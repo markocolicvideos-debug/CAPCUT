@@ -138,3 +138,7 @@ gebracht:
 Die Videolaenge liest das Skript selbst aus MP4/MOV (Standardbibliothek, kein
 ffmpeg noetig). Fuer andere Container (`.webm`, `.mkv` …) wird `ffprobe`
 versucht – dafuer waere `brew install ffmpeg` noetig.
+
+Der Speed-Wert wird **nicht gerundet**, damit `Videolaenge / Slot-Dauer` exakt
+aufgeht. Verifiziert: jedes Segment landet **mikrosekundengenau** auf seinem
+Zeitstempel, lueckenlos (CapCuts kleinste Einheit ist 1 Mikrosekunde).

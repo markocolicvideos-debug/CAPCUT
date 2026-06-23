@@ -197,11 +197,14 @@ def video_segment_params(src_len, target_dur, mode):
     speed: ganzes Video exakt in den Slot (schneller/langsamer).
     trim:  Anfang bis target_dur, Speed 1.0 (nur wenn Video lang genug).
     auto:  trim wenn moeglich, sonst speed.
+
+    Speed wird NICHT gerundet: so ergibt source_duration/speed exakt die
+    Slot-Dauer, und der Server rundet erst beim us-Wert (mikrosekundengenau).
     """
     if mode in ("trim", "auto") and src_len >= target_dur:
-        return 0.0, round(target_dur, 3), 1.0
+        return 0.0, target_dur, 1.0
     speed = src_len / target_dur            # auch Fallback wenn Video zu kurz
-    return 0.0, round(src_len, 3), round(speed, 6)
+    return 0.0, src_len, speed
 
 
 def collect_media(image_dir):
