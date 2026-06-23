@@ -115,8 +115,26 @@ Beispiele:
 - `013_00-01-00.jpg` → 60.000 s
 - `1-30` → 90 s, `01-02-03` → 3723 s
 
-Jedes Bild laeuft lueckenlos vom Ende des vorigen bis zu seinem eigenen
+Jedes Medium laeuft lueckenlos vom Ende des vorigen bis zu seinem eigenen
 Zeitstempel – mit Millisekunden-Genauigkeit (CapCut rechnet intern in
-Mikrosekunden). Luecken in der Nummerierung sind egal; Bilder mit Dauer ≤ 0
-werden uebersprungen. **Deine Bilddateien werden nie umbenannt oder
-verschoben.**
+Mikrosekunden). Luecken in der Nummerierung sind egal; Medien mit Dauer ≤ 0
+werden uebersprungen. **Deine Dateien werden nie umbenannt oder verschoben.**
+
+## Bilder UND Videos
+
+Es werden Bilder (`.png .jpg .jpeg .webp`) und Videos (`.mp4 .mov .m4v`)
+unterstuetzt – auch gemischt im selben Ordner. Alles landet lueckenlos auf
+**einer** Spur.
+
+Ein Video wird per `VIDEO_FIT` (Default `speed`) exakt auf seinen Zeit-Slot
+gebracht:
+
+- `speed` – ganzes Video, exakt eingepasst: schneller wenn zu lang, langsamer
+  wenn zu kurz (`speed = Videolaenge / Slot-Dauer`).
+- `trim` – Anfang bis zum Zeitstempel, Rest abgeschnitten (Speed 1.0; nur wenn
+  das Video mindestens so lang ist wie der Slot).
+- `auto` – trimmen wenn moeglich, sonst per Speed einpassen.
+
+Die Videolaenge liest das Skript selbst aus MP4/MOV (Standardbibliothek, kein
+ffmpeg noetig). Fuer andere Container (`.webm`, `.mkv` …) wird `ffprobe`
+versucht – dafuer waere `brew install ffmpeg` noetig.

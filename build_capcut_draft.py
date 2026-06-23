@@ -62,6 +62,20 @@ SERVER_DIR = os.environ.get(
 # Erlaubte Bildendungen.
 IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
 
+# Erlaubte Videoendungen. Die Laenge von MP4/MOV liest das Skript selbst
+# (Standardbibliothek); fuer andere Formate wird ffprobe versucht.
+VIDEO_EXTS = (".mp4", ".mov", ".m4v")
+MEDIA_EXTS = IMAGE_EXTS + VIDEO_EXTS
+
+# Wie Videos auf ihren Zeit-Slot gebracht werden:
+#   "speed" - ganzes Video, exakt eingepasst (schneller/langsamer). Default.
+#   "trim"  - Anfang bis zum Zeitstempel, Rest abgeschnitten (Speed 1.0).
+#   "auto"  - trimmen wenn Video laeng genug, sonst per Speed einpassen.
+VIDEO_FIT = os.environ.get("VIDEO_FIT", "speed").lower()
+
+# Gemeinsame Spur fuer Bilder UND Videos (lueckenlose, einreihige Timeline).
+TRACK_NAME = os.environ.get("TRACK_NAME", "main")
+
 # Netzwerk-Timeout pro Request (Sekunden).
 HTTP_TIMEOUT = 120
 
@@ -95,15 +109,110 @@ def parse_timestamp(filename):
     return round(hours * 3600 + minutes * 60 + seconds + millis, 3)
 
 
-def collect_images(image_dir):
-    """Liefert sortierte Liste (timestamp, filename) der gueltigen Bilder."""
+def is_video(filename):
+    return os.path.splitext(filename)[1].lower() in VIDEO_EXTS
+
+
+def mp4_duration(path):
+    """Liest die Dauer (Sekunden) aus der mvhd-Box eines MP4/MOV.
+
+    Nur Standardbibliothek, kein ffmpeg. Springt durch die Box-Struktur
+    (liest nicht die ganze Datei ein) und findet moov -> mvhd.
+    Gibt None zurueck, wenn nichts gefunden wird.
+    """
+    import struct
+    total = os.path.getsize(path)
+    with open(path, "rb") as f:
+        def find(parent_end, name):
+            while f.tell() + 8 <= parent_end:
+                pos = f.tell()
+                head = f.read(8)
+                if len(head) < 8:
+                    return None
+                box_size = struct.unpack(">I", head[:4])[0]
+                box_type = head[4:8]
+                hdr = 8
+                if box_size == 1:                       # 64-bit largesize
+                    box_size = struct.unpack(">Q", f.read(8))[0]
+                    hdr = 16
+                elif box_size == 0:                     # bis Ende
+                    box_size = parent_end - pos
+                if box_type == name:
+                    return pos, pos + hdr, pos + box_size
+                if box_size <= 0:
+                    return None
+                f.seek(pos + box_size)
+            return None
+
+        f.seek(0)
+        moov = find(total, b"moov")
+        if not moov:
+            return None
+        f.seek(moov[1])
+        mvhd = find(moov[2], b"mvhd")
+        if not mvhd:
+            return None
+        version = f.read(1)[0]
+        if version == 1:
+            f.seek(mvhd[1] + 20)
+            timescale = struct.unpack(">I", f.read(4))[0]
+            duration = struct.unpack(">Q", f.read(8))[0]
+        else:
+            f.seek(mvhd[1] + 12)
+            timescale = struct.unpack(">I", f.read(4))[0]
+            duration = struct.unpack(">I", f.read(4))[0]
+        return duration / timescale if timescale else None
+
+
+def ffprobe_duration(path):
+    """Fallback fuer Nicht-MP4-Formate, falls ffmpeg/ffprobe vorhanden ist."""
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nokey=1:noprint_wrappers=1", path],
+            capture_output=True, text=True, timeout=30,
+        )
+        val = out.stdout.strip()
+        return float(val) if val else None
+    except Exception:
+        return None
+
+
+def video_duration(path):
+    """Dauer (Sekunden) eines Videos: erst eingebauter MP4-Leser, dann ffprobe."""
+    if os.path.splitext(path)[1].lower() in (".mp4", ".mov", ".m4v"):
+        try:
+            dur = mp4_duration(path)
+            if dur and dur > 0:
+                return dur
+        except Exception:
+            pass
+    return ffprobe_duration(path)
+
+
+def video_segment_params(src_len, target_dur, mode):
+    """Liefert (source_start, source_end, speed) fuer ein Video.
+
+    speed: ganzes Video exakt in den Slot (schneller/langsamer).
+    trim:  Anfang bis target_dur, Speed 1.0 (nur wenn Video lang genug).
+    auto:  trim wenn moeglich, sonst speed.
+    """
+    if mode in ("trim", "auto") and src_len >= target_dur:
+        return 0.0, round(target_dur, 3), 1.0
+    speed = src_len / target_dur            # auch Fallback wenn Video zu kurz
+    return 0.0, round(src_len, 3), round(speed, 6)
+
+
+def collect_media(image_dir):
+    """Liefert sortierte Liste (timestamp, filename) gueltiger Bilder/Videos."""
     if not os.path.isdir(image_dir):
         sys.exit(f"FEHLER: IMAGE_DIR existiert nicht: {image_dir}")
 
     items = []
     skipped = []
     for name in os.listdir(image_dir):
-        if os.path.splitext(name)[1].lower() not in IMAGE_EXTS:
+        if os.path.splitext(name)[1].lower() not in MEDIA_EXTS:
             continue
         ts = parse_timestamp(name)
         if ts is None:
@@ -251,20 +360,51 @@ def main():
     print(f"  DRAFT_FOLDER = {DRAFT_FOLDER}")
     print()
 
-    items = collect_images(image_dir)
+    items = collect_media(image_dir)
     if not items:
-        sys.exit(f"FEHLER: keine Bilder ({', '.join(IMAGE_EXTS)}) in {image_dir}")
+        sys.exit(f"FEHLER: keine Medien ({', '.join(MEDIA_EXTS)}) in {image_dir}")
 
     segments = build_segments(items)
     if not segments:
         sys.exit("FEHLER: keine gueltigen Segmente (alle Dauern <= 0).")
 
-    # Geplanten Ablauf zur Kontrolle ausgeben.
-    print("Geplanter Ablauf:")
-    print(f"  {'Datei':<26} {'Start':>9} {'Ende':>9} {'Dauer':>9}")
+    # Medien-Infos ermitteln (fuer Videos: Laenge messen, Speed berechnen).
     for seg in segments:
-        print(f"  {seg['filename']:<26} {seg['start']:>9.3f} "
-              f"{seg['end']:>9.3f} {seg['duration']:>9.3f}")
+        seg["is_video"] = is_video(seg["filename"])
+        if not seg["is_video"]:
+            continue
+        path = os.path.join(image_dir, seg["filename"])
+        length = video_duration(path)
+        if not length or length <= 0:
+            sys.exit(
+                f"FEHLER: Videolaenge nicht lesbar: {seg['filename']}\n"
+                "  Der eingebaute Leser unterstuetzt MP4/MOV. Fuer andere\n"
+                "  Formate ffmpeg installieren:  brew install ffmpeg")
+        seg["src_len"] = length
+        s_start, s_end, speed = video_segment_params(
+            length, seg["duration"], VIDEO_FIT)
+        seg["src_start"], seg["src_end"], seg["speed"] = s_start, s_end, speed
+        if not 0.1 <= speed <= 100:
+            print(f"  WARNUNG: {seg['filename']} braucht {speed:.3f}x "
+                  "(ausserhalb 0.1-100x) - CapCut kann das evtl. nicht.")
+
+    # Geplanten Ablauf zur Kontrolle ausgeben.
+    print(f"Geplanter Ablauf (Video-Modus: {VIDEO_FIT}):")
+    print(f"  {'Datei':<26} {'Typ':<6} {'Start':>8} {'Ende':>8} "
+          f"{'Dauer':>8}  Hinweis")
+    for seg in segments:
+        if seg["is_video"]:
+            typ = "Video"
+            if abs(seg["speed"] - 1.0) < 1e-6:
+                hint = f"1.000x (Quelle {seg['src_len']:.3f}s, passt)"
+            else:
+                verb = "schneller" if seg["speed"] > 1 else "langsamer"
+                hint = f"{seg['speed']:.3f}x {verb} (Quelle {seg['src_len']:.3f}s)"
+        else:
+            typ = "Bild"
+            hint = ""
+        print(f"  {seg['filename']:<26} {typ:<6} {seg['start']:>8.3f} "
+              f"{seg['end']:>8.3f} {seg['duration']:>8.3f}  {hint}")
     total = segments[-1]["end"]
     print(f"  -> {len(segments)} Segmente, Gesamtlaenge {total:.3f}s")
     print()
@@ -289,19 +429,36 @@ def main():
         sys.exit(f"FEHLER: keine draft_id in Antwort: {json.dumps(resp)[:500]}")
     print(f"  draft_id = {draft_id}")
 
-    # 2) Bilder hinzufuegen.
+    # 2) Bilder/Videos hinzufuegen (alles auf einer Spur, lueckenlos).
     for seg in segments:
         url = image_url_for(seg["filename"])
-        print(f"add_image  {seg['filename']}  "
-              f"{seg['start']:.2f}->{seg['end']:.2f}s")
-        check_response("/add_image", post("/add_image", {
-            "image_url": url,
-            "draft_id": draft_id,
-            "start": seg["start"],
-            "end": seg["end"],
-            "width": WIDTH,
-            "height": HEIGHT,
-        }))
+        if seg["is_video"]:
+            print(f"add_video  {seg['filename']}  "
+                  f"{seg['start']:.3f}->{seg['end']:.3f}s  {seg['speed']:.3f}x")
+            check_response("/add_video", post("/add_video", {
+                "video_url": url,
+                "draft_id": draft_id,
+                "target_start": seg["start"],
+                "start": seg["src_start"],
+                "end": seg["src_end"],
+                "speed": seg["speed"],
+                "duration": seg["src_len"],
+                "track_name": TRACK_NAME,
+                "width": WIDTH,
+                "height": HEIGHT,
+            }))
+        else:
+            print(f"add_image  {seg['filename']}  "
+                  f"{seg['start']:.3f}->{seg['end']:.3f}s")
+            check_response("/add_image", post("/add_image", {
+                "image_url": url,
+                "draft_id": draft_id,
+                "start": seg["start"],
+                "end": seg["end"],
+                "track_name": TRACK_NAME,
+                "width": WIDTH,
+                "height": HEIGHT,
+            }))
 
     # 3) Speichern -> erzeugt dfd_*-Ordner.
     print("save_draft ...")

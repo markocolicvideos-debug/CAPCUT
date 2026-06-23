@@ -52,6 +52,22 @@ Genauigkeit). Die führende Nummerierung wird ignoriert:
 
 Beide Formate funktionieren – auch gemischt im selben Ordner.
 
+## Bilder und Videos
+
+Es gehen Bilder (`.png .jpg .jpeg .webp`) **und** Videos (`.mp4 .mov .m4v`) –
+auch gemischt im selben Ordner, alles lückenlos auf einer Spur.
+
+Videos werden standardmäßig **exakt auf ihren Zeit-Slot eingepasst**: ist das
+Video länger als der Slot, wird es schneller gemacht; ist es kürzer, langsamer
+– so passt es immer genau und der ganze Inhalt bleibt erhalten. (Die Videolänge
+liest das Skript selbst, ohne Zusatzprogramm.)
+
+Andere Modi über eine Umgebungsvariable vor dem Befehl:
+
+```bash
+VIDEO_FIT=trim bash run.sh "/Pfad/zu/deinen/Medien"   # statt Speed: abschneiden
+```
+
 ## Wenn mal etwas nicht klappt
 
 **„Server nicht erreichbar" / „Port 9001 nicht bereit":** Grund anzeigen mit
