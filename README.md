@@ -135,9 +135,11 @@ gebracht:
   das Video mindestens so lang ist wie der Slot).
 - `auto` – trimmen wenn moeglich, sonst per Speed einpassen.
 
-Die Videolaenge liest das Skript selbst aus MP4/MOV (Standardbibliothek, kein
-ffmpeg noetig). Fuer andere Container (`.webm`, `.mkv` …) wird `ffprobe`
-versucht – dafuer waere `brew install ffmpeg` noetig.
+Die Video-**Laenge und -Aufloesung** liest das Skript selbst aus MP4/MOV
+(Standardbibliothek, kein ffmpeg noetig) und schreibt die echte Aufloesung in
+den Entwurf (sonst wuerde der Server ohne ffmpeg 1920x1080 annehmen). Fuer
+andere Container (`.webm`, `.mkv` …) wird `ffprobe` versucht – dafuer waere
+`brew install ffmpeg` noetig.
 
 Der Speed-Wert wird **nicht gerundet**, damit `Videolaenge / Slot-Dauer` exakt
 aufgeht. Verifiziert: jedes Segment landet **mikrosekundengenau** auf seinem

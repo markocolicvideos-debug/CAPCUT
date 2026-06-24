@@ -164,6 +164,59 @@ def mp4_duration(path):
         return duration / timescale if timescale else None
 
 
+def _mp4_list_boxes(f, start, end):
+    """Listet (typ, body_start, box_end) der MP4-Boxen zwischen start..end."""
+    import struct
+    out = []
+    f.seek(start)
+    while f.tell() + 8 <= end:
+        pos = f.tell()
+        head = f.read(8)
+        if len(head) < 8:
+            break
+        size = struct.unpack(">I", head[:4])[0]
+        typ = head[4:8]
+        hdr = 8
+        if size == 1:
+            size = struct.unpack(">Q", f.read(8))[0]
+            hdr = 16
+        elif size == 0:
+            size = end - pos
+        if size <= 0:
+            break
+        out.append((typ, pos + hdr, pos + size))
+        f.seek(pos + size)
+    return out
+
+
+def mp4_resolution(path):
+    """Liest (Breite, Hoehe) aus der tkhd-Box des Video-Tracks. Nur Stdlib.
+
+    Breite/Hoehe stehen als 16.16-Festkomma in den letzten 8 Bytes der tkhd.
+    Genommen wird der erste Track mit Dimensionen != 0 (= der Video-Track).
+    Gibt (w, h) oder None zurueck.
+    """
+    import struct
+    total = os.path.getsize(path)
+    with open(path, "rb") as f:
+        top = _mp4_list_boxes(f, 0, total)
+        moov = next((b for b in top if b[0] == b"moov"), None)
+        if not moov:
+            return None
+        for typ, body, end in _mp4_list_boxes(f, moov[1], moov[2]):
+            if typ != b"trak":
+                continue
+            for t2, b2, e2 in _mp4_list_boxes(f, body, end):
+                if t2 != b"tkhd":
+                    continue
+                f.seek(e2 - 8)
+                w = struct.unpack(">I", f.read(4))[0] >> 16
+                h = struct.unpack(">I", f.read(4))[0] >> 16
+                if w and h:
+                    return int(w), int(h)
+    return None
+
+
 def ffprobe_duration(path):
     """Fallback fuer Nicht-MP4-Formate, falls ffmpeg/ffprobe vorhanden ist."""
     import subprocess
@@ -315,6 +368,44 @@ def check_response(path, payload):
     return payload
 
 
+def patch_video_dimensions(draft_id, segments):
+    """Schreibt die echten Video-Aufloesungen in das erzeugte draft_info.json.
+
+    Ohne ffmpeg kennt der Server die Aufloesung nicht und setzt 1920x1080.
+    Wir korrigieren das anhand der lokal gemessenen Werte (Abgleich per URL).
+    Rueckgabe: Anzahl korrigierter Video-Materialien.
+    """
+    by_url = {}
+    for seg in segments:
+        if seg.get("is_video") and seg.get("vid_res"):
+            by_url[image_url_for(seg["filename"])] = seg["vid_res"]
+    if not by_url:
+        return 0
+    info_path = os.path.join(SERVER_DIR, draft_id, "draft_info.json")
+    if not os.path.isfile(info_path):
+        return 0
+    try:
+        with open(info_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return 0
+    fixed = 0
+    for mat in data.get("materials", {}).get("videos", []):
+        if mat.get("type") != "video":
+            continue
+        res = by_url.get(mat.get("remote_url"))
+        if res:
+            mat["width"], mat["height"] = int(res[0]), int(res[1])
+            fixed += 1
+    if fixed:
+        try:
+            with open(info_path, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, ensure_ascii=False)
+        except OSError:
+            return 0
+    return fixed
+
+
 def install_draft(draft_id):
     """Kopiert den fertigen dfd_-Ordner von SERVER_DIR nach DRAFT_FOLDER.
 
@@ -384,6 +475,10 @@ def main():
                 "  Der eingebaute Leser unterstuetzt MP4/MOV. Fuer andere\n"
                 "  Formate ffmpeg installieren:  brew install ffmpeg")
         seg["src_len"] = length
+        try:
+            seg["vid_res"] = mp4_resolution(path)
+        except Exception:
+            seg["vid_res"] = None
         s_start, s_end, speed = video_segment_params(
             length, seg["duration"], VIDEO_FIT)
         seg["src_start"], seg["src_end"], seg["speed"] = s_start, s_end, speed
@@ -398,11 +493,14 @@ def main():
     for seg in segments:
         if seg["is_video"]:
             typ = "Video"
+            res = seg.get("vid_res")
+            res_txt = f", {res[0]}x{res[1]}" if res else ""
             if abs(seg["speed"] - 1.0) < 1e-6:
-                hint = f"1.000x (Quelle {seg['src_len']:.3f}s, passt)"
+                hint = f"1.000x (Quelle {seg['src_len']:.3f}s{res_txt})"
             else:
                 verb = "schneller" if seg["speed"] > 1 else "langsamer"
-                hint = f"{seg['speed']:.3f}x {verb} (Quelle {seg['src_len']:.3f}s)"
+                hint = (f"{seg['speed']:.3f}x {verb} "
+                        f"(Quelle {seg['src_len']:.3f}s{res_txt})")
         else:
             typ = "Bild"
             hint = ""
@@ -470,6 +568,12 @@ def main():
         "draft_folder": DRAFT_FOLDER,
     }))
     print(f"  Antwort: {json.dumps(resp)[:500]}")
+
+    # 3b) Echte Video-Aufloesungen ins JSON schreiben (Server kann sie ohne
+    #     ffmpeg nicht lesen und nutzt sonst 1920x1080).
+    fixed = patch_video_dimensions(draft_id, segments)
+    if fixed:
+        print(f"  Aufloesung gesetzt fuer {fixed} Video(s).")
 
     # 4) Entwurf nach DRAFT_FOLDER kopieren (ausser --no-install).
     print()
