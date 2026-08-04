@@ -11,12 +11,27 @@ set -euo pipefail
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
 
-IMAGE_DIR="${1:-${IMAGE_DIR:-./images}}"
-IMAGE_DIR="$(cd "$IMAGE_DIR" 2>/dev/null && pwd || true)"
-if [ -z "$IMAGE_DIR" ] || [ ! -d "$IMAGE_DIR" ]; then
-  echo "FEHLER: Bilderordner nicht gefunden. Aufruf: ./run.sh <BILDERORDNER>"
+# Ordner: 1. Argument, 2. Umgebungsvariable, 3. MEDIA_ORDNER aus dem Skript.
+IMAGE_DIR="${1:-${IMAGE_DIR:-}}"
+if [ -z "$IMAGE_DIR" ]; then
+  IMAGE_DIR="$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import build_capcut_draft as b; print(b.IMAGE_DIR)' "$ROOT" 2>/dev/null || true)"
+fi
+
+RESOLVED="$(cd "${IMAGE_DIR:-.}" 2>/dev/null && pwd || true)"
+if [ -z "$IMAGE_DIR" ] || [ -z "$RESOLVED" ] || [ ! -d "$RESOLVED" ]; then
+  echo "FEHLER: Medien-Ordner nicht gefunden${IMAGE_DIR:+: $IMAGE_DIR}"
+  echo
+  echo "Zwei Moeglichkeiten:"
+  echo "  1) Ordner direkt uebergeben:"
+  echo "       bash run.sh \"/Users/$(whoami)/Desktop/MeinOrdner\""
+  echo "     (Tipp: 'bash run.sh ' tippen und den Ordner aus dem Finder"
+  echo "      ins Terminal ziehen - der Pfad wird eingefuegt.)"
+  echo "  2) Ordner einmalig oben in build_capcut_draft.py eintragen:"
+  echo "       MEDIA_ORDNER = \"/Pfad/zu/deinem/Ordner\""
   exit 1
 fi
+IMAGE_DIR="$RESOLVED"
+echo "==> Medien-Ordner: $IMAGE_DIR"
 
 API_PORT="${API_PORT:-9001}"
 HTTP_PORT="${HTTP_PORT:-8000}"

@@ -32,6 +32,24 @@ Alles ist bereits installiert. Für ein neues Projekt nur noch das:
 Für jedes weitere Projekt einfach Schritt 1–6 wiederholen – egal in welchem
 neuen Terminal-Fenster.
 
+## Ordner einmalig festlegen (dann kein Pfad mehr nötig)
+
+Wenn du immer denselben Ordner nutzt, trag ihn einmal ein:
+
+```bash
+echo "/Users/markocolic/Desktop/Elevenlabs/Bilder" > ~/Downloads/capcut-tool/ordner.txt
+```
+
+Danach genügt zum Bauen:
+
+```bash
+bash ~/Downloads/capcut-tool/run.sh
+```
+
+Zum Wechseln einfach denselben `echo`-Befehl mit einem anderen Pfad ausführen –
+oder wie gewohnt einen Ordner direkt übergeben (der hat immer Vorrang). Beim
+Start zeigt das Skript an, welchen Ordner es nimmt: `==> Medien-Ordner: …`
+
 ## Wichtig zu wissen
 
 - Du musst in CapCut **kein** Projekt vorher anlegen – das Skript erstellt es.

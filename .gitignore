@@ -12,3 +12,6 @@ http.log
 
 # Erzeugte Entwurfsordner
 dfd_*/
+
+# Persoenliche Ordner-Konfiguration (Pfad zum eigenen Medien-Ordner)
+ordner.txt

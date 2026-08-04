@@ -30,9 +30,39 @@ import urllib.request
 # Adresse des CapCutAPI-Servers (capcut_server.py).
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:9001")
 
-# Lokaler Ordner mit den Bildern. Reihenfolge der Aufloesung:
-#   1. erstes CLI-Argument   2. Umgebungsvariable IMAGE_DIR   3. ./images
-IMAGE_DIR = os.environ.get("IMAGE_DIR", "./images")
+# >>> HIER den Ordner mit deinen Bildern/Videos eintragen. <<<
+# Dann reicht spaeter:  bash run.sh   (ohne Pfad dahinter)
+# Beispiel:
+#   MEDIA_ORDNER = "/Users/markocolic/Desktop/Elevenlabs/Bilder"
+# Tipp: Alternativ die Datei "ordner.txt" neben diesem Skript anlegen und den
+# Pfad da hineinschreiben - die ueberlebt jedes Update dieses Skripts.
+MEDIA_ORDNER = ""
+
+
+def _ordner_aus_textdatei():
+    """Liest den Medien-Ordner aus 'ordner.txt' neben diesem Skript.
+
+    Erste nicht-leere Zeile, die nicht mit '#' beginnt. Fehlt die Datei,
+    wird "" zurueckgegeben.
+    """
+    pfad = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "ordner.txt")
+    try:
+        with open(pfad, encoding="utf-8") as fh:
+            for zeile in fh:
+                zeile = zeile.strip().strip('"').strip("'")
+                if zeile and not zeile.startswith("#"):
+                    return os.path.expanduser(zeile)
+    except OSError:
+        pass
+    return ""
+
+
+# Lokaler Ordner mit den Medien. Reihenfolge der Aufloesung:
+#   1. erstes CLI-Argument   2. Umgebungsvariable IMAGE_DIR
+#   3. MEDIA_ORDNER (oben)   4. Datei ordner.txt   5. ./images
+IMAGE_DIR = (os.environ.get("IMAGE_DIR") or MEDIA_ORDNER
+             or _ordner_aus_textdatei() or "./images")
 
 # Basis-URL, unter der derselbe Ordner per HTTP erreichbar ist
 # (typisch: im Bilderordner `python3 -m http.server 8000`). Mit / am Ende.

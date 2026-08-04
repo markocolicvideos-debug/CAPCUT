@@ -68,6 +68,25 @@ sind, fuehrt den Build aus und stoppt die Server danach wieder:
 
 Logs der Hintergrund-Server: `server.log`, `http.log`.
 
+### Ordner einmalig festlegen
+
+Damit man den Pfad nicht jedes Mal tippen muss, kann der Medien-Ordner fest
+hinterlegt werden – dann genuegt `bash run.sh` ohne Pfad:
+
+```bash
+# Variante A: Textdatei neben dem Skript (ueberlebt Updates des Skripts)
+echo "/Users/DEINNAME/Desktop/MeinOrdner" > ordner.txt
+```
+
+```python
+# Variante B: oben in build_capcut_draft.py
+MEDIA_ORDNER = "/Users/DEINNAME/Desktop/MeinOrdner"
+```
+
+Reihenfolge der Aufloesung: **CLI-Argument** → `IMAGE_DIR` (Umgebung) →
+`MEDIA_ORDNER` → `ordner.txt` → `./images`. Ein uebergebener Pfad gewinnt also
+immer gegen die feste Einstellung.
+
 ## Konfiguration
 
 Oben in `build_capcut_draft.py` bzw. per Umgebungsvariable:
@@ -75,7 +94,7 @@ Oben in `build_capcut_draft.py` bzw. per Umgebungsvariable:
 | Variable       | Default                                                              |
 |----------------|---------------------------------------------------------------------|
 | `BASE_URL`     | `http://localhost:9001`                                             |
-| `IMAGE_DIR`    | 1. CLI-Argument, sonst `./images`                                  |
+| `IMAGE_DIR`    | CLI-Argument → `MEDIA_ORDNER` → `ordner.txt` → `./images`           |
 | `IMAGE_BASE`   | `http://localhost:8000/`                                            |
 | `WIDTH`/`HEIGHT` | `1920` / `1080`                                                  |
 | `DRAFT_FOLDER` | `~/Movies/CapCut/User Data/Projects/com.lveditor.draft` (macOS)     |
